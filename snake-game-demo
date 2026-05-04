@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>🐍 Snake — OrderQueue Visualizer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --green: #00ff88;
+    --green-dim: #00ff8844;
+    --cyan: #00d4ff;
+    --red: #ff4466;
+    --yellow: #ffd700;
+    --text: #e0e0f0;
+    --text-dim: #666688;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+    overflow-x: hidden;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    font-weight: 800;
+    color: var(--green);
+    letter-spacing: -1px;
+    text-shadow: 0 0 30px var(--green-dim);
+  }
+
+  .header .subtitle {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    margin-top: 6px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .main {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 20px;
+    align-items: start;
+    width: 100%;
+    max-width: 960px;
+  }
+
+  /* CANVAS */
+  .game-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    grid-column: 2;
+  }
+
+  canvas {
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    background: #070710;
+    display: block;
+    image-rendering: pixelated;
+    box-shadow: 0 0 40px #00ff8820;
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn {
+    background: transparent;
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    padding: 8px 20px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+
+  .btn:hover { background: var(--green-dim); }
+  .btn.danger { border-color: var(--red); color: var(--red); }
+  .btn.danger:hover { background: #ff446620; }
+
+  /* PANELS */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    font-size: 0.72rem;
+  }
+
+  .panel h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.85rem;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+
+  /* QUEUE VIZ */
+  .queue-container {
+    min-width: 200px;
+  }
+
+  .queue-label {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-dim);
+    font-size: 0.65rem;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+  }
+
+  .queue-slots {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 340px;
+    overflow: hidden;
+  }
+
+  .queue-slot {
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-size: 0.65rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .queue-slot.head {
+    border-color: var(--green);
+    background: #00ff8812;
+  }
+
+  .queue-slot.tail {
+    border-color: var(--red);
+    background: #ff446612;
+  }
+
+  .slot-tag {
+    font-size: 0.55rem;
+    letter-spacing: 1px;
+    opacity: 0.7;
+  }
+
+  .slot-color {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* LOG */
+  .log-panel {
+    min-width: 200px;
+  }
+
+  .log-entries {
+    max-height: 340px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 3px;
+  }
+
+  .log-entry {
+    font-size: 0.62rem;
+    color: var(--text-dim);
+    border-left: 2px solid var(--border);
+    padding-left: 8px;
+    line-height: 1.5;
+    animation: fadeIn 0.3s;
+  }
+
+  .log-entry.add { border-color: var(--green); color: var(--green); }
+  .log-entry.remove { border-color: var(--red); color: #ff8899; }
+  .log-entry.eat { border-color: var(--yellow); color: var(--yellow); }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: none; } }
+
+  /* STATS */
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .stat {
+    background: #0d0d18;
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    border-radius: 2px;
+    text-align: center;
+  }
+
+  .stat-val {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.4rem;
+    color: var(--green);
+  }
+
+  .stat-label { font-size: 0.6rem; color: var(--text-dim); letter-spacing: 1px; margin-top: 2px; }
+
+  /* code hint */
+  .code-hint {
+    background: #0d0d1a;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--green);
+    padding: 10px 14px;
+    font-size: 0.65rem;
+    line-height: 1.8;
+    border-radius: 0 4px 4px 0;
+    margin-top: 10px;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  .kw { color: #ff79c6; }
+  .fn { color: var(--cyan); }
+  .str { color: var(--yellow); }
+  .cm { color: #555577; }
+
+  .game-over-overlay {
+    position: absolute;
+    inset: 0;
+    background: #0a0a0fee;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    z-index: 10;
+    border-radius: 4px;
+  }
+
+  .game-wrap { position: relative; }
+
+  .go-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.6rem;
+    color: var(--red);
+    text-shadow: 0 0 20px var(--red);
+  }
+
+  .go-score { font-size: 0.8rem; color: var(--text-dim); }
+
+  @media (max-width: 700px) {
+    .main { grid-template-columns: 1fr; }
+    .game-wrap { grid-column: 1; }
+    .queue-container, .log-panel { min-width: unset; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🐍 Snake × OrderQueue</h1>
+  <div class="subtitle">Queue (FIFO) · addOrder() · processOrder() · peek()</div>
+</div>
+
+<div class="main">
+
+  <!-- LEFT: Queue visualization -->
+  <div class="panel queue-container">
+    <h3>Queue State</h3>
+    <div class="queue-label">
+      <span>← HEAD (peek/processOrder)</span>
+    </div>
+    <div class="queue-slots" id="queueSlots"></div>
+    <div class="queue-label" style="margin-top:4px;">
+      <span>← TAIL (addOrder)</span>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-val" id="queueSize">0</div>
+        <div class="stat-label">queue.size()</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="scoreVal">0</div>
+        <div class="stat-label">score</div>
+      </div>
+    </div>
+
+    <div class="code-hint"><span class="cm">// Тело змейки = FIFO</span>
+<span class="cm">// Новый сегмент — addOrder()</span>
+<span class="fn">queue</span>.addOrder(segment);
+
+<span class="cm">// Хвост исчезает — processOrder()</span>
+<span class="fn">queue</span>.processOrder();
+
+<span class="cm">// Следующий шаг — peek()</span>
+<span class="kw">String</span> next = <span class="fn">queue</span>.peek();</div>
+  </div>
+
+  <!-- CENTER: Game -->
+  <div class="game-wrap">
+    <canvas id="canvas" width="320" height="320"></canvas>
+    <div class="controls">
+      <button class="btn" id="startBtn" onclick="startGame()">▶ START</button>
+      <button class="btn danger" onclick="resetGame()">↺ RESET</button>
+    </div>
+    <div style="font-size:0.65rem; color:var(--text-dim); letter-spacing:1px;">WASD / СТРЕЛКИ</div>
+    <div id="gameOverlay" style="display:none;" class="game-over-overlay">
+      <div class="go-title">GAME OVER</div>
+      <div class="go-score" id="goScore"></div>
+      <button class="btn" onclick="resetGame()">↺ ИГРАТЬ СНОВА</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Log -->
+  <div class="panel log-panel">
+    <h3>Method Log</h3>
+    <div class="log-entries" id="logEntries"></div>
+
+    <div style="margin-top:14px; border-top:1px solid var(--border); padding-top:10px;">
+      <div style="font-size:0.65rem; color:var(--text-dim); margin-bottom:8px; letter-spacing:1px;">КАК ЭТО РАБОТАЕТ</div>
+      <div style="font-size:0.65rem; color:var(--text-dim); line-height:1.8;">
+        Каждый сегмент тела змейки — элемент очереди.<br><br>
+        Когда змейка движется:<br>
+        ① Новая голова → <span style="color:var(--green)">addOrder()</span><br>
+        ② Хвост уходит → <span style="color:var(--red)">processOrder()</span><br><br>
+        Когда съедает еду:<br>
+        ③ Хвост НЕ удаляется → тело растёт.<br><br>
+        Именно так Kafka обрабатывает сообщения: новые в конец, старые из начала.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const COLS = 16, ROWS = 16, CELL = 20;
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let snake, dir, nextDir, food, score, running, gameLoop, ateFood;
+let queueLog = [];
+
+const COLORS = ['#00ff88','#00ee77','#00dd66','#00cc55','#00bb44'];
+
+function initState() {
+  const mid = Math.floor(COLS / 2);
+  snake = [
+    {x: mid, y: 8},
+    {x: mid-1, y: 8},
+    {x: mid-2, y: 8},
+  ];
+  dir = {x: 1, y: 0};
+  nextDir = {x: 1, y: 0};
+  score = 0;
+  ateFood = false;
+  queueLog = [];
+  placeFood();
+  renderQueue();
+  document.getElementById('logEntries').innerHTML = '';
+  document.getElementById('gameOverlay').style.display = 'none';
+  document.getElementById('scoreVal').textContent = '0';
+}
+
+function placeFood() {
+  do {
+    food = {x: Math.floor(Math.random()*COLS), y: Math.floor(Math.random()*ROWS)};
+  } while (snake.some(s => s.x===food.x && s.y===food.y));
+}
+
+function startGame() {
+  if (running) return;
+  running = true;
+  document.getElementById('startBtn').textContent = '⏸ PAUSE';
+  document.getElementById('startBtn').onclick = pauseGame;
+  gameLoop = setInterval(tick, 150);
+}
+
+function pauseGame() {
+  running = false;
+  clearInterval(gameLoop);
+  document.getElementById('startBtn').textContent = '▶ RESUME';
+  document.getElementById('startBtn').onclick = startGame;
+}
+
+function resetGame() {
+  clearInterval(gameLoop);
+  running = false;
+  document.getElementById('startBtn').textContent = '▶ START';
+  document.getElementById('startBtn').onclick = startGame;
+  initState();
+  draw();
+}
+
+function tick() {
+  dir = nextDir;
+  const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+
+  // wall collision
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) { endGame(); return; }
+  // self collision
+  if (snake.some(s => s.x===head.x && s.y===head.y)) { endGame(); return; }
+
+  const eating = head.x===food.x && head.y===food.y;
+
+  // addOrder — new head
+  snake.unshift(head);
+  addLog(`addOrder("(${head.x},${head.y})")`, 'add');
+
+  if (eating) {
+    score++;
+    document.getElementById('scoreVal').textContent = score;
+    addLog(`🍎 eaten! queue grows → size=${snake.length}`, 'eat');
+    placeFood();
+  } else {
+    // processOrder — remove tail
+    const tail = snake.pop();
+    addLog(`processOrder() → removed (${tail.x},${tail.y})`, 'remove');
+  }
+
+  renderQueue();
+  draw();
+}
+
+function endGame() {
+  clearInterval(gameLoop);
+  running = false;
+  document.getElementById('gameOverlay').style.display = 'flex';
+  document.getElementById('goScore').textContent = `Score: ${score} | Queue size: ${snake.length}`;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // grid
+  ctx.strokeStyle = '#111122';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= COLS; i++) {
+    ctx.beginPath(); ctx.moveTo(i*CELL,0); ctx.lineTo(i*CELL,ROWS*CELL); ctx.stroke();
+  }
+  for (let j = 0; j <= ROWS; j++) {
+    ctx.beginPath(); ctx.moveTo(0,j*CELL); ctx.lineTo(COLS*CELL,j*CELL); ctx.stroke();
+  }
+
+  // food
+  ctx.fillStyle = '#ff4466';
+  ctx.shadowBlur = 14; ctx.shadowColor = '#ff4466';
+  ctx.beginPath();
+  ctx.arc(food.x*CELL+CELL/2, food.y*CELL+CELL/2, CELL/2-2, 0, Math.PI*2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // snake
+  snake.forEach((seg, i) => {
+    const alpha = 1 - (i / snake.length) * 0.5;
+    ctx.fillStyle = i === 0 ? '#00ff88' : `rgba(0,${Math.floor(200 - i*3)},${Math.floor(100-i*2)},${alpha})`;
+    if (i === 0) { ctx.shadowBlur = 16; ctx.shadowColor = '#00ff88'; }
+    const pad = i === 0 ? 1 : 2;
+    ctx.fillRect(seg.x*CELL+pad, seg.y*CELL+pad, CELL-pad*2, CELL-pad*2);
+    ctx.shadowBlur = 0;
+  });
+
+  // peek indicator
+  if (snake.length > 0) {
+    const tail = snake[snake.length-1];
+    ctx.strokeStyle = '#ff446666';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(tail.x*CELL+1, tail.y*CELL+1, CELL-2, CELL-2);
+  }
+}
+
+function renderQueue() {
+  const el = document.getElementById('queueSlots');
+  el.innerHTML = '';
+  document.getElementById('queueSize').textContent = snake.length;
+  const show = snake.slice(0, 14);
+  show.forEach((seg, i) => {
+    const div = document.createElement('div');
+    div.className = 'queue-slot' + (i===0?' head':'') + (i===show.length-1 && i===snake.length-1?' tail':'');
+    const color = i===0 ? '#00ff88' : `hsl(${150 - i*5}, 70%, ${50-i*2}%)`;
+    div.innerHTML = `
+      <div class="slot-color" style="background:${color}"></div>
+      <span>(${seg.x},${seg.y})</span>
+      <span class="slot-tag">${i===0?'HEAD →':i===snake.length-1?'← TAIL':''}</span>
+    `;
+    el.appendChild(div);
+  });
+  if (snake.length > 14) {
+    const more = document.createElement('div');
+    more.style = 'font-size:0.6rem;color:var(--text-dim);padding:4px 10px;';
+    more.textContent = `... ещё ${snake.length - 14} сегментов`;
+    el.appendChild(more);
+  }
+}
+
+function addLog(msg, type) {
+  const el = document.getElementById('logEntries');
+  const div = document.createElement('div');
+  div.className = `log-entry ${type}`;
+  const ts = new Date().toLocaleTimeString('ru',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  div.textContent = `[${ts}] ${msg}`;
+  el.prepend(div);
+  while (el.children.length > 60) el.removeChild(el.lastChild);
+}
+
+document.addEventListener('keydown', e => {
+  const map = {
+    ArrowUp: {x:0,y:-1}, ArrowDown: {x:0,y:1},
+    ArrowLeft: {x:-1,y:0}, ArrowRight: {x:1,y:0},
+    w: {x:0,y:-1}, s: {x:0,y:1}, a: {x:-1,y:0}, d: {x:1,y:0},
+    W: {x:0,y:-1}, S: {x:0,y:1}, A: {x:-1,y:0}, D: {x:1,y:0},
+  };
+  const newDir = map[e.key];
+  if (newDir) {
+    if (newDir.x !== -dir.x || newDir.y !== -dir.y) nextDir = newDir;
+    e.preventDefault();
+  }
+});
+
+initState();
+draw();
+</script>
+</body>
+</html>
